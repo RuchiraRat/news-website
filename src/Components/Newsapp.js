@@ -3,39 +3,51 @@ import Card from './Card';
 
 const Newsapp = () => {
   const [search, setSearch] = useState('Sri Lanka');
-  const [newsData, setNewsData] = useState(null);
+  const [newsData, setNewsData] = useState([]); // Initialize as empty array
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [refreshInterval] = useState(300000); // 5 minutes
 
-  // Function to fetch news data
   const fetchNewsData = async (searchQuery) => {
     setLoading(true);
     setError(null);
     
     try {
-      // Use proxy endpoint in production, direct API in development
-      const apiUrl = process.env.NODE_ENV === 'development'
-        ? `https://newsapi.org/v2/everything?q=${searchQuery}&apiKey=${process.env.REACT_APP_NEWS_API_KEY}`
-        : `/api/news?q=${searchQuery}`;
+      let apiUrl;
+      // Use different endpoints based on environment
+      if (process.env.NODE_ENV === 'development') {
+        if (!process.env.REACT_APP_NEWS_API_KEY) {
+          throw new Error('API key is missing in development environment');
+        }
+        apiUrl = `https://newsapi.org/v2/everything?q=${encodeURIComponent(searchQuery)}&apiKey=${process.env.REACT_APP_NEWS_API_KEY}`;
+      } else {
+        apiUrl = `/api/news?q=${encodeURIComponent(searchQuery)}`;
+      }
 
       const response = await fetch(apiUrl);
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `API request failed with status ${response.status}`);
+      // First check if response is JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        throw new Error(`Expected JSON but got: ${text.substring(0, 100)}...`);
       }
 
       const jsonData = await response.json();
       
-      if (Array.isArray(jsonData.articles)) {
-        const limitedData = jsonData.articles.slice(0, 10);
-        setNewsData(limitedData);
-      } else {
-        throw new Error('No articles found in response');
+      if (!response.ok) {
+        throw new Error(jsonData.message || `Request failed with status ${response.status}`);
       }
+
+      if (!jsonData.articles || !Array.isArray(jsonData.articles)) {
+        throw new Error('Invalid response format - articles array missing');
+      }
+
+      const limitedData = jsonData.articles.slice(0, 10);
+      setNewsData(limitedData.length > 0 ? limitedData : []);
+
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('Fetch error:', error);
       setError(error.message);
       setNewsData([]);
     } finally {
@@ -44,13 +56,9 @@ const Newsapp = () => {
   };
 
   useEffect(() => {
-    // Initial fetch
     fetchNewsData(search);
     
-    // Set up auto-refresh
     const intervalId = setInterval(() => fetchNewsData(search), refreshInterval);
-    
-    // Clean up interval on component unmount or search change
     return () => clearInterval(intervalId);
   }, [search, refreshInterval]);
 
@@ -59,13 +67,13 @@ const Newsapp = () => {
   };
 
   const handleSearch = () => {
-    // Trigger new search when button is clicked
-    fetchNewsData(search);
+    if (search.trim()) {
+      fetchNewsData(search);
+    }
   };
 
   const handleCategoryClick = (category) => {
     setSearch(category);
-    // Immediately fetch news for the new category
     fetchNewsData(category);
   };
 
@@ -101,6 +109,7 @@ const Newsapp = () => {
             key={category}
             onClick={() => handleCategoryClick(category)}
             className={search.toLowerCase() === category ? 'active' : ''}
+            disabled={loading}
           >
             {category.charAt(0).toUpperCase() + category.slice(1)}
           </button>
@@ -109,18 +118,22 @@ const Newsapp = () => {
 
       <div className="news-container">
         {loading && <div className="loading-message">Loading news...</div>}
+        
         {error && (
           <div className="error-message">
-            Error: {error}
+            Error: {error.includes('Expected JSON') ? 'Server returned invalid response' : error}
             <button onClick={() => fetchNewsData(search)}>Retry</button>
           </div>
         )}
-        {newsData && !loading && (
-          newsData.length > 0 ? (
-            <Card data={newsData} />
-          ) : (
-            <div className="no-results">No news found for "{search}"</div>
-          )
+        
+        {!loading && !error && newsData.length === 0 && (
+          <div className="no-results">
+            No news found for "{search}". Try a different search term.
+          </div>
+        )}
+        
+        {!loading && !error && newsData.length > 0 && (
+          <Card data={newsData} />
         )}
       </div>
     </div>
