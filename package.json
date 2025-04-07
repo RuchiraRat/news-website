@@ -37,5 +37,8 @@
   "devDependencies": {
     "ajv": "^7.2.4",
     "react-scripts": "^3.0.1"
+  },
+  "engines": {
+    "node": "18.x"
   }
 }
