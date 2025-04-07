@@ -5,7 +5,10 @@
         "src": "package.json",
         "use": "@vercel/static-build",
         "config": {
-          "nodeVersion": "16.x"
+          "nodeVersion": "18.x",
+          "env": {
+            "NODE_OPTIONS": "--openssl-legacy-provider"
+          }
         }
       }
     ]
