@@ -21,10 +21,9 @@ const Newsapp = () => {
             }
         } catch (error) {
             console.error("Error fetching data:", error);
-            setNewsData([]); // Optional fallback
+            setNewsData([]); // Optional
         }
-    };
-    
+    };    
 
     useEffect(()=>{
         getData()
