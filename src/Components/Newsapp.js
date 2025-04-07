@@ -4,14 +4,24 @@ import Card from './Card';
 const Newsapp = () => {
   const [search, setSearch] = useState('Sri lanka');
   const [newsData, setNewsData] = useState(null);
-  const API_KEY = '4cbcd26a680144e096f4c7a9b16cd835';
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [refreshInterval, setRefreshInterval] = useState(300000); // 5 minutes
 
   useEffect(() => {
     const getData = async () => {
+      setLoading(true);
+      setError(null);
       try {
+        // In production, this should be a backend endpoint that hides your API key
         const response = await fetch(
-          `https://newsapi.org/v2/everything?q=${search}&apiKey=${API_KEY}`
+          `https://newsapi.org/v2/everything?q=${search}&apiKey=${process.env.REACT_APP_NEWS_API_KEY}`
         );
+        
+        if (!response.ok) {
+          throw new Error(`API request failed with status ${response.status}`);
+        }
+
         const jsonData = await response.json();
         console.log(jsonData);
 
@@ -19,24 +29,32 @@ const Newsapp = () => {
           let dt = jsonData.articles.slice(0, 10);
           setNewsData(dt);
         } else {
-          console.error('No articles found in response:', jsonData);
-          setNewsData([]);
+          throw new Error('No articles found in response');
         }
       } catch (error) {
         console.error('Error fetching data:', error);
+        setError(error.message);
         setNewsData([]);
+      } finally {
+        setLoading(false);
       }
     };
 
     getData();
-  }, [search]); // Triggers fetch whenever 'search' changes
+    
+    // Set up auto-refresh
+    const intervalId = setInterval(getData, refreshInterval);
+    
+    // Clean up interval on component unmount or search change
+    return () => clearInterval(intervalId);
+  }, [search, refreshInterval]);
 
   const handleInput = (e) => {
     setSearch(e.target.value);
   };
 
-  const userInput = (event) => {
-    setSearch(event.target.value);
+  const handleCategoryClick = (category) => {
+    setSearch(category);
   };
 
   return (
@@ -65,24 +83,21 @@ const Newsapp = () => {
       </div>
 
       <div className='categoryBtn'>
-        <button onClick={userInput} value='sports'>
-          Sports
-        </button>
-        <button onClick={userInput} value='politics'>
-          Politics
-        </button>
-        <button onClick={userInput} value='entertainment'>
-          Entertainment
-        </button>
-        <button onClick={userInput} value='health'>
-          Health
-        </button>
-        <button onClick={userInput} value='fitness'>
-          Fitness
-        </button>
+        {['sports', 'politics', 'entertainment', 'health', 'fitness'].map((category) => (
+          <button 
+            key={category}
+            onClick={() => handleCategoryClick(category)}
+            value={category}
+          >
+            {category.charAt(0).toUpperCase() + category.slice(1)}
+          </button>
+        ))}
       </div>
 
-      <div>{newsData ? <Card data={newsData} /> : null}</div>
+      {loading && <div className="loading">Loading news...</div>}
+      {error && <div className="error">Error: {error}</div>}
+      {newsData && !loading && <Card data={newsData} />}
+      {!newsData && !loading && !error && <div>No news found</div>}
     </div>
   );
 };
