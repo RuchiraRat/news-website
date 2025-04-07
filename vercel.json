@@ -6,10 +6,17 @@
         "use": "@vercel/static-build",
         "config": {
           "nodeVersion": "18.x",
+          "distDir": "build",
           "env": {
             "NODE_OPTIONS": "--openssl-legacy-provider"
           }
         }
+      }
+    ],
+    "routes": [
+      {
+        "src": "/(.*)",
+        "dest": "/build/$1"
       }
     ]
   }
