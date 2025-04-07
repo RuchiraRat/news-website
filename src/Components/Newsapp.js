@@ -2,83 +2,96 @@ import React, { useEffect, useState } from 'react';
 import Card from './Card';
 
 const Newsapp = () => {
-  const [search, setSearch] = useState('Sri lanka');
+  const [search, setSearch] = useState('Sri Lanka');
   const [newsData, setNewsData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [refreshInterval, setRefreshInterval] = useState(300000); // 5 minutes
+  const [refreshInterval] = useState(300000); // 5 minutes
+
+  // Function to fetch news data
+  const fetchNewsData = async (searchQuery) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Use proxy endpoint in production, direct API in development
+      const apiUrl = process.env.NODE_ENV === 'development'
+        ? `https://newsapi.org/v2/everything?q=${searchQuery}&apiKey=${process.env.REACT_APP_NEWS_API_KEY}`
+        : `/api/news?q=${searchQuery}`;
+
+      const response = await fetch(apiUrl);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `API request failed with status ${response.status}`);
+      }
+
+      const jsonData = await response.json();
+      
+      if (Array.isArray(jsonData.articles)) {
+        const limitedData = jsonData.articles.slice(0, 10);
+        setNewsData(limitedData);
+      } else {
+        throw new Error('No articles found in response');
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setError(error.message);
+      setNewsData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const getData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        // In production, this should be a backend endpoint that hides your API key
-        const response = await fetch(
-          `https://newsapi.org/v2/everything?q=${search}&apiKey=${process.env.REACT_APP_NEWS_API_KEY}`
-        );
-        
-        if (!response.ok) {
-          throw new Error(`API request failed with status ${response.status}`);
-        }
-
-        const jsonData = await response.json();
-        console.log(jsonData);
-
-        if (Array.isArray(jsonData.articles)) {
-          let dt = jsonData.articles.slice(0, 10);
-          setNewsData(dt);
-        } else {
-          throw new Error('No articles found in response');
-        }
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setError(error.message);
-        setNewsData([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    getData();
+    // Initial fetch
+    fetchNewsData(search);
     
     // Set up auto-refresh
-    const intervalId = setInterval(getData, refreshInterval);
+    const intervalId = setInterval(() => fetchNewsData(search), refreshInterval);
     
     // Clean up interval on component unmount or search change
     return () => clearInterval(intervalId);
   }, [search, refreshInterval]);
 
-  const handleInput = (e) => {
+  const handleInputChange = (e) => {
     setSearch(e.target.value);
+  };
+
+  const handleSearch = () => {
+    // Trigger new search when button is clicked
+    fetchNewsData(search);
   };
 
   const handleCategoryClick = (category) => {
     setSearch(category);
+    // Immediately fetch news for the new category
+    fetchNewsData(category);
   };
 
   return (
-    <div>
-      <nav>
-        <div>
+    <div className="news-app">
+      <nav className="news-nav">
+        <div className="logo">
           <h1>SriCast News</h1>
         </div>
-        <ul style={{ display: 'flex', gap: '11px' }}>
-          <li style={{ fontWeight: 600, fontSize: '17px' }}>All News</li>
-          <li style={{ fontWeight: 600, fontSize: '17px' }}>Trending</li>
+        <ul className="nav-links">
+          <li>All News</li>
+          <li>Trending</li>
         </ul>
         <div className='searchBar'>
           <input
             type='text'
             placeholder='Search News'
             value={search}
-            onChange={handleInput}
+            onChange={handleInputChange}
+            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
           />
-          <button onClick={() => setSearch(search)}>Search</button>
+          <button onClick={handleSearch}>Search</button>
         </div>
       </nav>
 
-      <div>
+      <div className="app-header">
         <p className='head'>Stay Updated with SriCast News</p>
       </div>
 
@@ -87,17 +100,29 @@ const Newsapp = () => {
           <button 
             key={category}
             onClick={() => handleCategoryClick(category)}
-            value={category}
+            className={search.toLowerCase() === category ? 'active' : ''}
           >
             {category.charAt(0).toUpperCase() + category.slice(1)}
           </button>
         ))}
       </div>
 
-      {loading && <div className="loading">Loading news...</div>}
-      {error && <div className="error">Error: {error}</div>}
-      {newsData && !loading && <Card data={newsData} />}
-      {!newsData && !loading && !error && <div>No news found</div>}
+      <div className="news-container">
+        {loading && <div className="loading-message">Loading news...</div>}
+        {error && (
+          <div className="error-message">
+            Error: {error}
+            <button onClick={() => fetchNewsData(search)}>Retry</button>
+          </div>
+        )}
+        {newsData && !loading && (
+          newsData.length > 0 ? (
+            <Card data={newsData} />
+          ) : (
+            <div className="no-results">No news found for "{search}"</div>
+          )
+        )}
+      </div>
     </div>
   );
 };
